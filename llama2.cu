@@ -39,13 +39,15 @@ __global__ void rmsnorm_kernel(half* o, half* x, half* weight, int size, int ele
     float ss = 0.0f;
     for (int i = 0; i < elementsPerThread; i++) {
         int index = threadIdx.x + i * 1024;
-        if (index < size)
-            ss += (float)x[index];
+        if (index < size) {
+            float val = (float)x[index];
+            ss += val * val;
+        }
     }
 
     using BlockReduce = cub::BlockReduce<float, 1024>;
     __shared__ typename BlockReduce::TempStorage temp;
-    ss = BlockReduce(temp).Sum(ss * ss);
+    ss = BlockReduce(temp).Sum(ss);
 
     __shared__ float shared_ss;
     if (threadIdx.x == 0) {
@@ -165,7 +167,7 @@ __global__ void vec_mat_kernel(half* op, const half* __restrict__ ip, const half
         int start_k = e * 32;
         k = start_k + threadIdx.x;
         int buf_i = e & 1;
-        sum += float(loaded_fragment[buf_i][threadIdx.x][threadIdx.y]) * (float)(input[k]);
+        sum += float(loaded_fragment[buf_i][threadIdx.x][threadIdx.y]) * ((k < K) ? (float) input[k] : 0);
 
         // load for the next iteration
         e++;
